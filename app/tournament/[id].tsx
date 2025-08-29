@@ -6,44 +6,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTournamentStore } from '@/stores/tournament-store';
 
 export default function TournamentDetailScreen() {
-  const params = useLocalSearchParams<{ id: string | string[] }>();
+  const { id } = useLocalSearchParams<{ id: string }>();
   const getTournament = useTournamentStore(state => state.getTournament);
   
-  // Normalize id parameter - handle both string and array cases
-  const id = Array.isArray(params.id) ? params.id[0] : params.id;
-  
-  const tournament = id ? getTournament(id) : null;
-  
-  if (!id) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <ArrowLeft size={24} color="#1E293B" />
-          </TouchableOpacity>
-          <Text style={styles.title}>Torneio</Text>
-          <View style={styles.placeholder} />
-        </View>
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>ID do torneio inválido</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  const tournament = getTournament(id!);
   
   if (!tournament) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <ArrowLeft size={24} color="#1E293B" />
-          </TouchableOpacity>
-          <Text style={styles.title}>Torneio</Text>
-          <View style={styles.placeholder} />
-        </View>
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>Torneio não encontrado</Text>
-        </View>
+        <Text>Torneio não encontrado</Text>
       </SafeAreaView>
     );
   }
@@ -235,17 +206,5 @@ const styles = StyleSheet.create({
   menuDescription: {
     fontSize: 14,
     color: '#64748B',
-  },
-  errorContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-  },
-  errorText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1E293B',
-    textAlign: 'center',
   },
 });

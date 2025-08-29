@@ -20,7 +20,7 @@ interface TournamentStore {
   
   // Match actions
   updateMatch: (tournamentId: string, matchId: string, updates: Partial<Match>) => void;
-  generateBracket: (tournamentId: string, forceReset?: boolean) => void;
+  generateBracket: (tournamentId: string) => void;
   advanceWinners: (tournamentId: string) => void;
   
   // Settings actions
@@ -240,85 +240,20 @@ export const useTournamentStore = create<TournamentStore>((set, get) => ({
     get().saveData();
   },
   
-  generateBracket: (tournamentId, forceReset = false) => {
-    console.log('generateBracket called with tournamentId:', tournamentId, 'forceReset:', forceReset);
+  generateBracket: (tournamentId) => {
+    const tournament = get().getTournament(tournamentId);
+    if (!tournament) return;
     
-    // Normalize tournamentId if it comes as array
-    const normalizedId = Array.isArray(tournamentId) ? tournamentId[0] : tournamentId;
-    if (!normalizedId) {
-      console.log('Invalid tournament ID');
-      return;
-    }
+    const matches = createMatches(tournament.participants, tournamentId, tournament.size);
     
-    const state = get();
-    const tournament = state.tournaments.find(t => t.id === normalizedId);
-    if (!tournament) {
-      console.log('Tournament not found!');
-      return;
-    }
-    
-    console.log('Tournament found:', tournament.name);
-    console.log('Participants:', tournament.participants.length);
-    console.log('Tournament size:', tournament.size);
-    console.log('Existing matches:', tournament.matches.length);
-    
-    // Check if bracket already exists and not forcing reset
-    if (tournament.matches.length > 0 && !forceReset) {
-      console.log('Bracket already exists. Use forceReset=true to regenerate.');
-      return;
-    }
-    
-    // Validate minimum participants
-    if (tournament.participants.length < 2) {
-      console.log('Not enough participants to generate bracket');
-      throw new Error('É necessário pelo menos 2 participantes para gerar o chaveamento');
-    }
-    
-    // Generate matches
-    const matches = createMatches(tournament.participants, normalizedId, tournament.size);
-    console.log('Generated matches:', matches.length);
-    console.log('Matches details:', matches.map(m => ({ 
-      id: m.id,
-      round: m.round, 
-      p1: m.participant1?.name || 'BYE', 
-      p2: m.participant2?.name || 'BYE', 
-      status: m.status,
-      winner: m.winner?.name
-    })));
-    
-    // Create completely new tournaments array to force re-render
-    const updatedTournaments = state.tournaments.map(t => 
-      t.id === normalizedId 
-        ? { 
-            ...t, 
-            matches: matches, // Use new matches array
-            status: 'in_progress' as const, 
-            updatedAt: new Date() 
-          }
-        : { ...t } // Spread other tournaments to ensure immutability
-    );
-    
-    // Force state update with new reference
-    set({ 
-      tournaments: [...updatedTournaments] // Create new array reference
-    });
-    
-    console.log('State updated, saving data...');
-    
-    // Save to AsyncStorage
-    setTimeout(async () => {
-      try {
-        await get().saveData();
-        console.log('Data saved successfully');
-        
-        // Verify the update
-        const updatedTournament = get().tournaments.find(t => t.id === normalizedId);
-        console.log('Final verification - tournament matches count:', updatedTournament?.matches.length);
-        console.log('Tournament status:', updatedTournament?.status);
-      } catch (error) {
-        console.error('Error saving data:', error);
-      }
-    }, 100);
+    set((state) => ({
+      tournaments: state.tournaments.map(t => 
+        t.id === tournamentId 
+          ? { ...t, matches, status: 'in_progress', updatedAt: new Date() }
+          : t
+      )
+    }));
+    get().saveData();
   },
   
   updateSettings: (updates) => {
@@ -336,29 +271,16 @@ export const useTournamentStore = create<TournamentStore>((set, get) => ({
         AsyncStorage.getItem('settings')
       ]);
       
-      // Normalize null values to prevent JSON.parse(null) errors
-      const tournaments = tournamentsData && tournamentsData !== 'null' ? JSON.parse(tournamentsData) : [];
-      const settings = settingsData && settingsData !== 'null' ? JSON.parse(settingsData) : {
+      const tournaments = tournamentsData ? JSON.parse(tournamentsData) : [];
+      const settings = settingsData ? JSON.parse(settingsData) : {
         theme: 'light',
         language: 'pt',
         hasCompletedOnboarding: false
       };
       
-      // Ensure tournaments is always an array
-      const normalizedTournaments = Array.isArray(tournaments) ? tournaments : [];
-      
-      set({ tournaments: normalizedTournaments, settings });
+      set({ tournaments, settings });
     } catch (error) {
       console.error('Error loading data:', error);
-      // Set default values on error
-      set({ 
-        tournaments: [], 
-        settings: {
-          theme: 'light',
-          language: 'pt',
-          hasCompletedOnboarding: false
-        }
-      });
     } finally {
       set({ isLoading: false });
     }
