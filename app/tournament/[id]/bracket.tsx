@@ -7,12 +7,16 @@ import { useTournamentStore } from '@/stores/tournament-store';
 import { Match, Participant } from '@/types/tournament';
 
 export default function BracketScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const params = useLocalSearchParams<{ id: string | string[] }>();
   const { tournaments, generateBracket, updateMatch } = useTournamentStore();
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
   const [score, setScore] = useState('');
   const [winner, setWinner] = useState<Participant | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  
+  // Normalize id parameter - handle both string and array cases
+  const id = Array.isArray(params.id) ? params.id[0] : params.id;
   
   // Subscribe to the tournaments array to ensure re-renders
   const tournament = tournaments.find(t => t.id === id);
@@ -29,26 +33,63 @@ export default function BracketScreen() {
     }
   }, [id, tournament]);
   
+  if (!id) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <ArrowLeft size={24} color="#1E293B" />
+          </TouchableOpacity>
+          <Text style={styles.title}>Chaveamento</Text>
+          <View style={styles.placeholder} />
+        </View>
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyTitle}>ID do torneio inválido</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+  
   if (!tournament) {
     return (
       <SafeAreaView style={styles.container}>
-        <Text>Torneio não encontrado</Text>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <ArrowLeft size={24} color="#1E293B" />
+          </TouchableOpacity>
+          <Text style={styles.title}>Chaveamento</Text>
+          <View style={styles.placeholder} />
+        </View>
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyTitle}>Torneio não encontrado</Text>
+          <Text style={styles.emptyDescription}>O torneio solicitado não foi encontrado.</Text>
+        </View>
       </SafeAreaView>
     );
   }
 
   const handleGenerateBracket = () => {
     console.log('handleGenerateBracket called');
-    console.log('Tournament participants:', tournament.participants.length);
+    console.log('Tournament participants:', tournament?.participants.length || 0);
+    
+    if (!tournament) {
+      Alert.alert('Erro', 'Torneio não encontrado');
+      return;
+    }
     
     if (tournament.participants.length < 2) {
       Alert.alert('Erro', 'É necessário pelo menos 2 participantes para gerar o chaveamento');
       return;
     }
     
+    const hasExistingBracket = tournament.matches.length > 0;
+    const message = hasExistingBracket 
+      ? 'Já existe um chaveamento. Deseja gerar um novo chaveamento? Isso irá substituir o atual.'
+      : 'Isso irá gerar o chaveamento do torneio. Continuar?';
+    
     Alert.alert(
       'Gerar Chaveamento',
-      'Isso irá gerar um novo chaveamento. Continuar?',
+      message,
       [
         { text: 'Cancelar', style: 'cancel' },
         { 
@@ -56,13 +97,35 @@ export default function BracketScreen() {
           onPress: async () => {
             console.log('Generating bracket for tournament:', id);
             setIsGenerating(true);
+            setError(null);
             
-            // Add a small delay to show the generating state
-            setTimeout(() => {
-              generateBracket(id!);
+            try {
+              // Add a small delay to show the generating state
+              setTimeout(() => {
+                try {
+                  generateBracket(id!, hasExistingBracket); // Force reset if bracket exists
+                  console.log('Bracket generation completed successfully');
+                  
+                  // Show success feedback
+                  setTimeout(() => {
+                    const updatedTournament = tournaments.find(t => t.id === id);
+                    if (updatedTournament && updatedTournament.matches.length > 0) {
+                      console.log(`✅ Chaveamento criado com ${updatedTournament.matches.length} partidas`);
+                    }
+                  }, 200);
+                } catch (err) {
+                  console.error('Error generating bracket:', err);
+                  setError(err instanceof Error ? err.message : 'Erro ao gerar chaveamento');
+                  Alert.alert('Erro', err instanceof Error ? err.message : 'Erro ao gerar chaveamento');
+                } finally {
+                  setIsGenerating(false);
+                }
+              }, 500);
+            } catch (err) {
+              console.error('Error in handleGenerateBracket:', err);
+              setError('Erro inesperado ao gerar chaveamento');
               setIsGenerating(false);
-              console.log('Bracket generation completed');
-            }, 500);
+            }
           }
         }
       ]
@@ -194,14 +257,37 @@ export default function BracketScreen() {
           <Text style={styles.emptyDescription}>
             {isGenerating 
               ? 'Aguarde enquanto o chaveamento é criado'
-              : 'Adicione participantes e gere o chaveamento para começar o torneio'
+              : `Torneio com ${tournament.participants.length} participantes. Gere o chaveamento para começar.`
             }
           </Text>
+          
+          {error && (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          )}
+          
           {!isGenerating && (
-            <TouchableOpacity style={styles.generateButton} onPress={handleGenerateBracket}>
-              <Text style={styles.generateButtonText}>Gerar Chaveamento</Text>
+            <TouchableOpacity 
+              style={[
+                styles.generateButton,
+                tournament.participants.length < 2 && styles.generateButtonDisabled
+              ]} 
+              onPress={handleGenerateBracket}
+              disabled={tournament.participants.length < 2}
+            >
+              <Text style={[
+                styles.generateButtonText,
+                tournament.participants.length < 2 && styles.generateButtonTextDisabled
+              ]}>
+                {tournament.participants.length < 2 
+                  ? 'Adicione mais participantes' 
+                  : 'Gerar Chaveamento'
+                }
+              </Text>
             </TouchableOpacity>
           )}
+          
           {isGenerating && (
             <View style={styles.loadingIndicator}>
               <Text style={styles.loadingText}>Processando...</Text>
@@ -716,6 +802,28 @@ const styles = StyleSheet.create({
   loadingText: {
     color: '#6B7280',
     fontSize: 16,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  generateButtonDisabled: {
+    backgroundColor: '#9CA3AF',
+    opacity: 0.6,
+  },
+  generateButtonTextDisabled: {
+    color: '#FFFFFF',
+    opacity: 0.8,
+  },
+  errorContainer: {
+    backgroundColor: '#FEE2E2',
+    borderRadius: 8,
+    padding: 12,
+    marginVertical: 16,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  errorText: {
+    color: '#DC2626',
+    fontSize: 14,
     fontWeight: '500',
     textAlign: 'center',
   },

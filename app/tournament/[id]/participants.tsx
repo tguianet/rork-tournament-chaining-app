@@ -7,19 +7,48 @@ import { useTournamentStore } from '@/stores/tournament-store';
 import { Participant } from '@/types/tournament';
 
 export default function ParticipantsScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const params = useLocalSearchParams<{ id: string | string[] }>();
   const { getTournament, addParticipant, updateParticipant, removeParticipant } = useTournamentStore();
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingParticipant, setEditingParticipant] = useState<Participant | null>(null);
   const [participantName, setParticipantName] = useState('');
   const [participantLevel, setParticipantLevel] = useState<'beginner' | 'intermediate' | 'advanced'>('beginner');
   
-  const tournament = getTournament(id!);
+  // Normalize id parameter - handle both string and array cases
+  const id = Array.isArray(params.id) ? params.id[0] : params.id;
+  
+  const tournament = id ? getTournament(id) : null;
+  
+  if (!id) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <ArrowLeft size={24} color="#1E293B" />
+          </TouchableOpacity>
+          <Text style={styles.title}>Participantes</Text>
+          <View style={styles.addButton} />
+        </View>
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyTitle}>ID do torneio inválido</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
   
   if (!tournament) {
     return (
       <SafeAreaView style={styles.container}>
-        <Text>Torneio não encontrado</Text>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <ArrowLeft size={24} color="#1E293B" />
+          </TouchableOpacity>
+          <Text style={styles.title}>Participantes</Text>
+          <View style={styles.addButton} />
+        </View>
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyTitle}>Torneio não encontrado</Text>
+        </View>
       </SafeAreaView>
     );
   }
