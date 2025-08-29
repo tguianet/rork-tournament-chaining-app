@@ -52,6 +52,7 @@ export default function HomeScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   
   useEffect(() => {
+    console.log('[HOME] mount');
     loadData().then(() => {
       setIsInitialLoading(false);
     });

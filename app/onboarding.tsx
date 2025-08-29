@@ -35,10 +35,11 @@ export default function OnboardingScreen() {
   const handleStart = async () => {
     try {
       await setOnboardingDone();
-      router.replace('/(tabs)');
+      console.log('[ONB] redirecting to home');
+      router.replace('/(tabs)/home');
     } catch (error) {
-      console.error('[ONBOARDING] Error completing onboarding:', error);
-      router.replace('/(tabs)');
+      console.error('[ONB] Error completing onboarding:', error);
+      router.replace('/(tabs)/home');
     }
   };
   

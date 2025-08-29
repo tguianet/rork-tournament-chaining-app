@@ -1,4 +1,4 @@
-// app/_layout.tsx
+// Fix: Non-blocking layout that always renders
 import React, { useEffect } from 'react';
 import { Slot } from 'expo-router';
 import { useAppStore } from '../stores/app-store';
@@ -9,7 +9,7 @@ export default function RootLayout() {
   useEffect(() => {
     console.log('[LAYOUT] mounted');
     loadAppState().catch(console.error);
-  }, [loadAppState]);
+  }, []);
 
   return <Slot />;
 }

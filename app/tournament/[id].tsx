@@ -1,3 +1,4 @@
+// Fix: Simplified tournament detail screen that works with current store
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Users, Trophy, Calendar, Settings } from 'lucide-react-native';
 import React from 'react';
@@ -7,12 +8,12 @@ import { useTournamentStore } from '@/stores/tournament-store';
 
 export default function TournamentDetailScreen() {
   const params = useLocalSearchParams<{ id: string | string[] }>();
-  const getTournament = useTournamentStore(state => state.getTournament);
+  const tournaments = useTournamentStore(s => s.tournaments);
   
   // Normalize id parameter - handle both string and array cases
   const id = Array.isArray(params.id) ? params.id[0] : params.id || null;
   
-  const tournament = id ? getTournament(id) : null;
+  const tournament = id ? tournaments.find(t => t.id === id) : null;
   
   if (!id) {
     return (
@@ -52,7 +53,7 @@ export default function TournamentDetailScreen() {
     {
       icon: Users,
       title: 'Participantes',
-      description: `${tournament.participants.length}/${tournament.size} jogadores`,
+      description: `${tournament.participants.length} jogadores`,
       onPress: () => router.push(`/tournament/${id}/participants`)
     },
     {
@@ -74,6 +75,8 @@ export default function TournamentDetailScreen() {
       onPress: () => router.push(`/tournament/${id}/settings`)
     }
   ];
+
+  const matches = tournament.bracket?.matches || [];
   
   return (
     <SafeAreaView style={styles.container}>
@@ -89,21 +92,19 @@ export default function TournamentDetailScreen() {
         <View style={styles.tournamentInfo}>
           <View style={styles.infoCard}>
             <Text style={styles.infoTitle}>{tournament.name}</Text>
-            <Text style={styles.infoSubtitle}>
-              {tournament.type === 'single_elimination' ? 'Eliminação Simples' : 'Eliminação Dupla'}
-            </Text>
+            <Text style={styles.infoSubtitle}>Eliminação Simples</Text>
             <View style={styles.infoStats}>
               <View style={styles.statItem}>
                 <Text style={styles.statValue}>{tournament.participants.length}</Text>
                 <Text style={styles.statLabel}>Participantes</Text>
               </View>
               <View style={styles.statItem}>
-                <Text style={styles.statValue}>{tournament.size}</Text>
-                <Text style={styles.statLabel}>Vagas</Text>
+                <Text style={styles.statValue}>{matches.length}</Text>
+                <Text style={styles.statLabel}>Partidas</Text>
               </View>
               <View style={styles.statItem}>
-                <Text style={styles.statValue}>{tournament.matches.length}</Text>
-                <Text style={styles.statLabel}>Partidas</Text>
+                <Text style={styles.statValue}>{tournament.bracket?.status === 'gerado' ? 'Sim' : 'Não'}</Text>
+                <Text style={styles.statLabel}>Chave Gerada</Text>
               </View>
             </View>
           </View>

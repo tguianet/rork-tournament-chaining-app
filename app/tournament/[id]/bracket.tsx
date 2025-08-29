@@ -1,6 +1,6 @@
-// app/tournament/[id]/bracket.tsx
+// Fix: Proper bracket screen with safe parameter handling and bracket rendering
 import React, { useMemo } from 'react';
-import { View, Text, Pressable, ScrollView } from 'react-native';
+import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useTournamentStore } from '../../../stores/tournament-store';
 
@@ -47,41 +47,43 @@ export default function BracketScreen() {
 
   if (!tournamentId || !tournament) {
     return (
-      <View style={{ padding: 16 }}>
-        <Text>Carregando torneio…</Text>
+      <View style={styles.container}>
+        <Text style={styles.loadingText}>Carregando torneio…</Text>
       </View>
     );
   }
 
   const canShowBracket = !!tournament.bracket?.matches?.length;
+  const participantCount = tournament.participants?.length ?? 0;
+  const canGenerate = participantCount >= 2;
 
   return (
-    <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
-      <Text style={{ fontSize: 18, fontWeight: '600' }}>
-        {tournament.name}
-      </Text>
+    <ScrollView contentContainerStyle={styles.scrollContainer}>
+      <Text style={styles.title}>{tournament.name}</Text>
 
       {!canShowBracket && (
-        <View style={{ paddingVertical: 8 }}>
-          <Text style={{ marginBottom: 8 }}>
-            Participantes: {tournament.participants?.length ?? 0}
+        <View style={styles.generateSection}>
+          <Text style={styles.participantCount}>
+            Participantes: {participantCount}
           </Text>
           <Pressable
             onPress={onGenerate}
-            disabled={(tournament.participants?.length ?? 0) < 2}
-            style={({ pressed }) => ({
-              backgroundColor: (tournament.participants?.length ?? 0) < 2 ? '#ccc' : '#1e40af',
-              padding: 12,
-              borderRadius: 10,
-              opacity: pressed ? 0.8 : 1
-            })}
+            disabled={!canGenerate}
+            style={({ pressed }) => ([
+              styles.generateButton,
+              !canGenerate && styles.generateButtonDisabled,
+              pressed && styles.generateButtonPressed
+            ])}
           >
-            <Text style={{ color: 'white', textAlign: 'center', fontWeight: '600' }}>
+            <Text style={[
+              styles.generateButtonText,
+              !canGenerate && styles.generateButtonTextDisabled
+            ]}>
               Gerar chaveamento
             </Text>
           </Pressable>
-          {(tournament.participants?.length ?? 0) < 2 && (
-            <Text style={{ marginTop: 6, color: '#8b0000' }}>
+          {!canGenerate && (
+            <Text style={styles.errorText}>
               Adicione pelo menos 2 participantes.
             </Text>
           )}
@@ -89,22 +91,164 @@ export default function BracketScreen() {
       )}
 
       {canShowBracket && (
-        <View style={{ gap: 8 }}>
-          <Text style={{ fontWeight: '600' }}>Chaveamento</Text>
-          {tournament.bracket!.matches.map((m, idx) => (
-            <View key={m.id} style={{
-              borderWidth: 1, borderColor: '#e5e7eb',
-              borderRadius: 10, padding: 10
-            }}>
-              <Text style={{ fontWeight: '600' }}>Jogo {idx + 1} — R{m.round}</Text>
-              <Text>A: {m.playerA ?? 'BYE'}</Text>
-              <Text>B: {m.playerB ?? 'BYE'}</Text>
-              <Text>Status: {m.status}</Text>
-              {m.nextMatchId && <Text>→ Próxima: {m.nextMatchId} ({m.slotInNext})</Text>}
-            </View>
-          ))}
+        <View style={styles.bracketSection}>
+          <View style={styles.bracketHeader}>
+            <Text style={styles.bracketTitle}>Chaveamento</Text>
+            <Pressable onPress={onGenerate} style={styles.regenerateButton}>
+              <Text style={styles.regenerateButtonText}>Regenerar</Text>
+            </Pressable>
+          </View>
+          {tournament.bracket!.matches.map((m, idx) => {
+            const playerAName = tournament.participants.find(p => p.id === m.playerA)?.name || 'BYE';
+            const playerBName = tournament.participants.find(p => p.id === m.playerB)?.name || 'BYE';
+            
+            return (
+              <View key={m.id} style={styles.matchCard}>
+                <Text style={styles.matchTitle}>Jogo {idx + 1} — Rodada {m.round}</Text>
+                <View style={styles.matchPlayers}>
+                  <Text style={styles.playerText}>🔵 {playerAName}</Text>
+                  <Text style={styles.vsText}>vs</Text>
+                  <Text style={styles.playerText}>🔴 {playerBName}</Text>
+                </View>
+                <Text style={[
+                  styles.statusText,
+                  m.status === 'DONE' && styles.statusDone
+                ]}>
+                  Status: {m.status === 'DONE' ? 'Finalizado' : 'Pendente'}
+                </Text>
+                {m.winner && (
+                  <Text style={styles.winnerText}>
+                    🏆 Vencedor: {tournament.participants.find(p => p.id === m.winner)?.name}
+                  </Text>
+                )}
+              </View>
+            );
+          })}
         </View>
       )}
     </ScrollView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    padding: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  scrollContainer: {
+    padding: 16,
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#64748B',
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#1E293B',
+    marginBottom: 16,
+  },
+  generateSection: {
+    paddingVertical: 16,
+  },
+  participantCount: {
+    fontSize: 16,
+    color: '#64748B',
+    marginBottom: 16,
+  },
+  generateButton: {
+    backgroundColor: '#1E40AF',
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  generateButtonDisabled: {
+    backgroundColor: '#CBD5E1',
+  },
+  generateButtonPressed: {
+    opacity: 0.8,
+  },
+  generateButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  generateButtonTextDisabled: {
+    color: '#94A3B8',
+  },
+  errorText: {
+    marginTop: 8,
+    color: '#EF4444',
+    fontSize: 14,
+  },
+  bracketSection: {
+    gap: 12,
+  },
+  bracketHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  bracketTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#1E293B',
+  },
+  regenerateButton: {
+    backgroundColor: '#F59E0B',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  regenerateButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  matchCard: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    padding: 16,
+  },
+  matchTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1E293B',
+    marginBottom: 8,
+  },
+  matchPlayers: {
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  playerText: {
+    fontSize: 14,
+    color: '#374151',
+    marginVertical: 2,
+  },
+  vsText: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    fontWeight: '600',
+    marginVertical: 4,
+  },
+  statusText: {
+    fontSize: 12,
+    color: '#F59E0B',
+    fontWeight: '500',
+  },
+  statusDone: {
+    color: '#10B981',
+  },
+  winnerText: {
+    fontSize: 14,
+    color: '#10B981',
+    fontWeight: '600',
+    marginTop: 4,
+  },
+});

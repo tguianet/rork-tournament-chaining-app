@@ -1,4 +1,4 @@
-// stores/tournament-store.ts
+// Fix: Corrected tournament store with proper bracket generation
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 

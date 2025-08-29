@@ -1,3 +1,4 @@
+// Fix: Single redirect point with safe fallbacks
 import { useEffect } from 'react';
 import { View } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -8,7 +9,7 @@ export default function Index() {
   const done = useAppStore(s => s.onboarding?.hasCompletedOnboarding ?? false);
 
   useEffect(() => {
-    console.log('[INDEX] redirect', done);
+    console.log('[INDEX] done:', done);
     router.replace(done ? '/(tabs)/home' : '/onboarding');
   }, [done, router]);
 

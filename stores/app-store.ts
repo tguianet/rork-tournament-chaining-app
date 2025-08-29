@@ -1,3 +1,4 @@
+// Fix: Non-blocking app store with safe state management
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 
@@ -20,7 +21,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       const raw = await AsyncStorage.getItem('app:onboarding');
       const parsed = raw ? JSON.parse(raw) : null;
-      const hasCompleted = parsed === true;
+      const hasCompleted = parsed?.hasCompletedOnboarding === true || parsed === true;
       
       set({ 
         onboarding: { 
@@ -40,15 +41,15 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setOnboardingDone: async () => {
     try {
-      await AsyncStorage.setItem('app:onboarding', JSON.stringify(true));
+      await AsyncStorage.setItem('app:onboarding', JSON.stringify({ hasCompletedOnboarding: true }));
       set({ 
         onboarding: { 
           hasCompletedOnboarding: true 
         } 
       });
-      console.log('[APP_STORE] setOnboardingDone ok');
+      console.log('[ONB] set done');
     } catch (e) {
-      console.error('[APP_STORE] setOnboardingDone error', e);
+      console.error('[APP] setOnboardingDone error', e);
     }
   },
 }));
