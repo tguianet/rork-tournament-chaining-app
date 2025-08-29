@@ -34,11 +34,13 @@ export default function OnboardingScreen() {
   
   const handleStart = async () => {
     try {
+      console.log('[ONB] Starting onboarding completion...');
       await setOnboardingDone();
-      console.log('[ONB] redirecting to home');
+      console.log('[ONB] Onboarding completed, redirecting to home');
       router.replace('/(tabs)/home');
     } catch (error) {
       console.error('[ONB] Error completing onboarding:', error);
+      // Still redirect to home even if storage fails
       router.replace('/(tabs)/home');
     }
   };
