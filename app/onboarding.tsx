@@ -4,7 +4,7 @@ import { Trophy, Users, Calendar, BarChart3 } from 'lucide-react-native';
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useAppStore } from '@/stores/app-store';
+import { useTournamentStore } from '@/stores/tournament-store';
 
 const features = [
   {
@@ -30,19 +30,11 @@ const features = [
 ];
 
 export default function OnboardingScreen() {
-  const { setOnboardingDone } = useAppStore();
+  const updateSettings = useTournamentStore(state => state.updateSettings);
   
-  const handleStart = async () => {
-    try {
-      console.log('[ONB] Starting onboarding completion...');
-      await setOnboardingDone();
-      console.log('[ONB] Onboarding completed, redirecting to home');
-      router.replace('/(tabs)/home');
-    } catch (error) {
-      console.error('[ONB] Error completing onboarding:', error);
-      // Still redirect to home even if storage fails
-      router.replace('/(tabs)/home');
-    }
+  const handleStart = () => {
+    updateSettings({ hasCompletedOnboarding: true });
+    router.replace('/(tabs)');
   };
   
   return (

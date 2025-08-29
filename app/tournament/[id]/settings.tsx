@@ -1,6 +1,5 @@
-// Fix: Simplified settings screen that works with current store
 import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, Edit3, Trash2, Users, Trophy } from 'lucide-react-native';
+import { ArrowLeft, Edit3, Trash2, Users, Trophy, Calendar, FileText, Share, Download } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View, ScrollView, Alert, Modal, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -8,15 +7,16 @@ import { useTournamentStore } from '@/stores/tournament-store';
 
 export default function TournamentSettingsScreen() {
   const params = useLocalSearchParams<{ id: string | string[] }>();
-  const tournaments = useTournamentStore(s => s.tournaments);
-  const updateTournament = useTournamentStore(s => s.updateTournament);
+  const { getTournament, updateTournament, deleteTournament } = useTournamentStore();
   const [showEditModal, setShowEditModal] = useState(false);
   const [tournamentName, setTournamentName] = useState('');
+  const [tournamentRules, setTournamentRules] = useState('');
+  const [tournamentType, setTournamentType] = useState<'single_elimination' | 'double_elimination'>('single_elimination');
   
   // Normalize id parameter - handle both string and array cases
-  const id = Array.isArray(params.id) ? params.id[0] : params.id || null;
+  const id = Array.isArray(params.id) ? params.id[0] : params.id;
   
-  const tournament = id ? tournaments.find(t => t.id === id) : null;
+  const tournament = id ? getTournament(id) : null;
   
   if (!id) {
     return (
@@ -54,17 +54,21 @@ export default function TournamentSettingsScreen() {
 
   const handleEditTournament = () => {
     setTournamentName(tournament.name);
+    setTournamentRules(tournament.rules || '');
+    setTournamentType(tournament.type);
     setShowEditModal(true);
   };
 
-  const handleSaveChanges = async () => {
+  const handleSaveChanges = () => {
     if (!tournamentName.trim()) {
       Alert.alert('Erro', 'Nome do torneio é obrigatório');
       return;
     }
 
-    await updateTournament(id!, {
+    updateTournament(id!, {
       name: tournamentName.trim(),
+      rules: tournamentRules.trim() || undefined,
+      type: tournamentType
     });
 
     setShowEditModal(false);
@@ -80,7 +84,7 @@ export default function TournamentSettingsScreen() {
           text: 'Excluir', 
           style: 'destructive', 
           onPress: () => {
-            // For now, just go back - delete functionality would need to be added to store
+            deleteTournament(id!);
             router.back();
           }
         }
@@ -88,9 +92,40 @@ export default function TournamentSettingsScreen() {
     );
   };
 
-  const matches = tournament.bracket?.matches || [];
-  const completedMatches = matches.filter(m => m.status === 'DONE').length;
-  const totalMatches = matches.length;
+  const handleExportPDF = () => {
+    Alert.alert('Em breve', 'Funcionalidade de exportar PDF será implementada em breve.');
+  };
+
+  const handleExportCSV = () => {
+    Alert.alert('Em breve', 'Funcionalidade de exportar CSV será implementada em breve.');
+  };
+
+  const handleShareBracket = () => {
+    Alert.alert('Em breve', 'Funcionalidade de compartilhar chaveamento será implementada em breve.');
+  };
+
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'setup': return 'Configuração';
+      case 'seeding': return 'Seeding';
+      case 'in_progress': return 'Em andamento';
+      case 'completed': return 'Finalizado';
+      default: return status;
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'setup': return '#6B7280';
+      case 'seeding': return '#F59E0B';
+      case 'in_progress': return '#1E40AF';
+      case 'completed': return '#10B981';
+      default: return '#6B7280';
+    }
+  };
+
+  const completedMatches = tournament.matches.filter(m => m.status === 'completed').length;
+  const totalMatches = tournament.matches.length;
   const progressPercentage = totalMatches > 0 ? (completedMatches / totalMatches) * 100 : 0;
 
   return (
@@ -110,15 +145,22 @@ export default function TournamentSettingsScreen() {
           <View style={styles.infoCard}>
             <View style={styles.infoHeader}>
               <Text style={styles.infoTitle}>{tournament.name}</Text>
+              <View style={[styles.statusBadge, { backgroundColor: getStatusColor(tournament.status) + '20' }]}>
+                <Text style={[styles.statusText, { color: getStatusColor(tournament.status) }]}>
+                  {getStatusText(tournament.status)}
+                </Text>
+              </View>
             </View>
             
-            <Text style={styles.infoSubtitle}>Eliminação Simples</Text>
+            <Text style={styles.infoSubtitle}>
+              {tournament.type === 'single_elimination' ? 'Eliminação Simples' : 'Eliminação Dupla'}
+            </Text>
             
             <View style={styles.infoStats}>
               <View style={styles.statItem}>
                 <Users size={20} color="#1E40AF" />
                 <Text style={styles.statLabel}>Participantes</Text>
-                <Text style={styles.statValue}>{tournament.participants.length}</Text>
+                <Text style={styles.statValue}>{tournament.participants.length}/{tournament.size}</Text>
               </View>
               
               <View style={styles.statItem}>
@@ -128,11 +170,18 @@ export default function TournamentSettingsScreen() {
               </View>
               
               <View style={styles.statItem}>
-                <Trophy size={20} color="#1E40AF" />
+                <Calendar size={20} color="#1E40AF" />
                 <Text style={styles.statLabel}>Progresso</Text>
                 <Text style={styles.statValue}>{Math.round(progressPercentage)}%</Text>
               </View>
             </View>
+            
+            {tournament.rules && (
+              <View style={styles.rulesSection}>
+                <Text style={styles.rulesTitle}>Regras</Text>
+                <Text style={styles.rulesText}>{tournament.rules}</Text>
+              </View>
+            )}
           </View>
         </View>
 
@@ -145,7 +194,41 @@ export default function TournamentSettingsScreen() {
             </View>
             <View style={styles.actionContent}>
               <Text style={styles.actionTitle}>Editar Torneio</Text>
-              <Text style={styles.actionDescription}>Alterar nome do torneio</Text>
+              <Text style={styles.actionDescription}>Alterar nome, tipo e regras</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Exportar e Compartilhar</Text>
+          
+          <TouchableOpacity style={styles.actionItem} onPress={handleExportPDF}>
+            <View style={styles.actionIcon}>
+              <FileText size={20} color="#10B981" />
+            </View>
+            <View style={styles.actionContent}>
+              <Text style={styles.actionTitle}>Exportar PDF</Text>
+              <Text style={styles.actionDescription}>Relatório completo do torneio</Text>
+            </View>
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={styles.actionItem} onPress={handleExportCSV}>
+            <View style={styles.actionIcon}>
+              <Download size={20} color="#10B981" />
+            </View>
+            <View style={styles.actionContent}>
+              <Text style={styles.actionTitle}>Exportar CSV</Text>
+              <Text style={styles.actionDescription}>Dados em planilha</Text>
+            </View>
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={styles.actionItem} onPress={handleShareBracket}>
+            <View style={styles.actionIcon}>
+              <Share size={20} color="#10B981" />
+            </View>
+            <View style={styles.actionContent}>
+              <Text style={styles.actionTitle}>Compartilhar Chaveamento</Text>
+              <Text style={styles.actionDescription}>Imagem do bracket</Text>
             </View>
           </TouchableOpacity>
         </View>
@@ -183,6 +266,54 @@ export default function TournamentSettingsScreen() {
                   value={tournamentName}
                   onChangeText={setTournamentName}
                   placeholder="Digite o nome do torneio"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Tipo de Eliminação</Text>
+                <View style={styles.typeSelector}>
+                  <TouchableOpacity
+                    style={[
+                      styles.typeOption,
+                      tournamentType === 'single_elimination' && styles.typeOptionSelected
+                    ]}
+                    onPress={() => setTournamentType('single_elimination')}
+                  >
+                    <Text style={[
+                      styles.typeOptionText,
+                      tournamentType === 'single_elimination' && styles.typeOptionTextSelected
+                    ]}>
+                      Simples
+                    </Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={[
+                      styles.typeOption,
+                      tournamentType === 'double_elimination' && styles.typeOptionSelected
+                    ]}
+                    onPress={() => setTournamentType('double_elimination')}
+                  >
+                    <Text style={[
+                      styles.typeOptionText,
+                      tournamentType === 'double_elimination' && styles.typeOptionTextSelected
+                    ]}>
+                      Dupla
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Regras (opcional)</Text>
+                <TextInput
+                  style={[styles.textInput, styles.textArea]}
+                  value={tournamentRules}
+                  onChangeText={setTournamentRules}
+                  placeholder="Digite as regras do torneio"
+                  multiline
+                  numberOfLines={4}
+                  textAlignVertical="top"
                 />
               </View>
             </View>
@@ -253,12 +384,26 @@ const styles = StyleSheet.create({
     borderColor: '#E2E8F0',
   },
   infoHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
     marginBottom: 8,
   },
   infoTitle: {
     fontSize: 20,
     fontWeight: 'bold',
     color: '#1E293B',
+    flex: 1,
+    marginRight: 12,
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   infoSubtitle: {
     fontSize: 16,
@@ -268,6 +413,7 @@ const styles = StyleSheet.create({
   infoStats: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    marginBottom: 20,
   },
   statItem: {
     alignItems: 'center',
@@ -283,6 +429,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#1E293B',
+  },
+  rulesSection: {
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+  },
+  rulesTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1E293B',
+    marginBottom: 8,
+  },
+  rulesText: {
+    fontSize: 14,
+    color: '#64748B',
+    lineHeight: 20,
   },
   section: {
     marginBottom: 24,
@@ -344,6 +506,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingBottom: 34,
+    maxHeight: '80%',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -383,6 +546,34 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 16,
     color: '#1E293B',
+  },
+  textArea: {
+    height: 100,
+  },
+  typeSelector: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  typeOption: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    alignItems: 'center',
+  },
+  typeOptionSelected: {
+    backgroundColor: '#1E40AF',
+    borderColor: '#1E40AF',
+  },
+  typeOptionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  typeOptionTextSelected: {
+    color: '#FFFFFF',
   },
   modalActions: {
     flexDirection: 'row',

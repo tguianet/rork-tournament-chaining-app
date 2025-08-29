@@ -1,22 +1,23 @@
-// Fix: Simplified participants screen that works with current store
 import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, Plus, UserPlus } from 'lucide-react-native';
+import { ArrowLeft, Plus, UserPlus, Upload, Trash2, Edit3 } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View, ScrollView, TextInput, Alert, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useTournamentStore, Participant } from '@/stores/tournament-store';
+import { useTournamentStore } from '@/stores/tournament-store';
+import { Participant } from '@/types/tournament';
 
 export default function ParticipantsScreen() {
   const params = useLocalSearchParams<{ id: string | string[] }>();
-  const tournaments = useTournamentStore(s => s.tournaments);
-  const addParticipant = useTournamentStore(s => s.addParticipant);
+  const { getTournament, addParticipant, updateParticipant, removeParticipant } = useTournamentStore();
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingParticipant, setEditingParticipant] = useState<Participant | null>(null);
   const [participantName, setParticipantName] = useState('');
+  const [participantLevel, setParticipantLevel] = useState<'beginner' | 'intermediate' | 'advanced'>('beginner');
   
   // Normalize id parameter - handle both string and array cases
-  const id = Array.isArray(params.id) ? params.id[0] : params.id || null;
+  const id = Array.isArray(params.id) ? params.id[0] : params.id;
   
-  const tournament = id ? tournaments.find(t => t.id === id) : null;
+  const tournament = id ? getTournament(id) : null;
   
   if (!id) {
     return (
@@ -52,20 +53,64 @@ export default function ParticipantsScreen() {
     );
   }
 
-  const handleAddParticipant = async () => {
+  const handleAddParticipant = () => {
     if (!participantName.trim()) {
       Alert.alert('Erro', 'Nome do participante é obrigatório');
       return;
     }
 
-    const newParticipant: Participant = {
-      id: crypto.randomUUID(),
-      name: participantName.trim(),
-    };
+    if (editingParticipant) {
+      updateParticipant(id!, editingParticipant.id, {
+        name: participantName.trim(),
+        level: participantLevel
+      });
+    } else {
+      addParticipant(id!, {
+        name: participantName.trim(),
+        level: participantLevel
+      });
+    }
 
-    await addParticipant(id!, newParticipant);
     setParticipantName('');
+    setParticipantLevel('beginner');
+    setEditingParticipant(null);
     setShowAddModal(false);
+  };
+
+  const handleEditParticipant = (participant: Participant) => {
+    setEditingParticipant(participant);
+    setParticipantName(participant.name);
+    setParticipantLevel(participant.level);
+    setShowAddModal(true);
+  };
+
+  const handleRemoveParticipant = (participantId: string) => {
+    Alert.alert(
+      'Remover Participante',
+      'Tem certeza que deseja remover este participante?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Remover', style: 'destructive', onPress: () => removeParticipant(id!, participantId) }
+      ]
+    );
+  };
+
+  const getLevelLabel = (level: string) => {
+    switch (level) {
+      case 'beginner': return 'Iniciante';
+      case 'intermediate': return 'Intermediário';
+      case 'advanced': return 'Avançado';
+      default: return level;
+    }
+  };
+
+  const getLevelColor = (level: string) => {
+    switch (level) {
+      case 'beginner': return '#10B981';
+      case 'intermediate': return '#F59E0B';
+      case 'advanced': return '#EF4444';
+      default: return '#6B7280';
+    }
   };
 
   return (
@@ -82,7 +127,7 @@ export default function ParticipantsScreen() {
 
       <View style={styles.statsBar}>
         <Text style={styles.statsText}>
-          {tournament.participants.length} participantes
+          {tournament.participants.length} de {tournament.size} participantes
         </Text>
       </View>
 
@@ -104,23 +149,59 @@ export default function ParticipantsScreen() {
             {tournament.participants.map((participant, index) => (
               <View key={participant.id} style={styles.participantCard}>
                 <View style={styles.participantInfo}>
-                  <Text style={styles.participantName}>{participant.name}</Text>
-                  <Text style={styles.participantIndex}>#{index + 1}</Text>
+                  <View style={styles.participantHeader}>
+                    <Text style={styles.participantName}>{participant.name}</Text>
+                    <View style={styles.participantActions}>
+                      <TouchableOpacity 
+                        onPress={() => handleEditParticipant(participant)}
+                        style={styles.actionButton}
+                      >
+                        <Edit3 size={16} color="#6B7280" />
+                      </TouchableOpacity>
+                      <TouchableOpacity 
+                        onPress={() => handleRemoveParticipant(participant.id)}
+                        style={styles.actionButton}
+                      >
+                        <Trash2 size={16} color="#EF4444" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                  <View style={styles.participantMeta}>
+                    <View style={[styles.levelBadge, { backgroundColor: getLevelColor(participant.level) + '20' }]}>
+                      <Text style={[styles.levelText, { color: getLevelColor(participant.level) }]}>
+                        {getLevelLabel(participant.level)}
+                      </Text>
+                    </View>
+                    {participant.seed && (
+                      <Text style={styles.seedText}>Seed #{participant.seed}</Text>
+                    )}
+                  </View>
                 </View>
               </View>
             ))}
           </View>
         )}
+
+        <View style={styles.actions}>
+          <TouchableOpacity style={styles.importButton}>
+            <Upload size={20} color="#6B7280" />
+            <Text style={styles.importButtonText}>Importar CSV</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
 
       <Modal visible={showAddModal} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Novo Participante</Text>
+              <Text style={styles.modalTitle}>
+                {editingParticipant ? 'Editar Participante' : 'Novo Participante'}
+              </Text>
               <TouchableOpacity onPress={() => {
                 setShowAddModal(false);
+                setEditingParticipant(null);
                 setParticipantName('');
+                setParticipantLevel('beginner');
               }}>
                 <Text style={styles.modalClose}>✕</Text>
               </TouchableOpacity>
@@ -137,6 +218,29 @@ export default function ParticipantsScreen() {
                   autoFocus
                 />
               </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Nível</Text>
+                <View style={styles.levelSelector}>
+                  {(['beginner', 'intermediate', 'advanced'] as const).map((level) => (
+                    <TouchableOpacity
+                      key={level}
+                      style={[
+                        styles.levelOption,
+                        participantLevel === level && styles.levelOptionSelected
+                      ]}
+                      onPress={() => setParticipantLevel(level)}
+                    >
+                      <Text style={[
+                        styles.levelOptionText,
+                        participantLevel === level && styles.levelOptionTextSelected
+                      ]}>
+                        {getLevelLabel(level)}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
             </View>
 
             <View style={styles.modalActions}>
@@ -144,13 +248,17 @@ export default function ParticipantsScreen() {
                 style={styles.cancelButton}
                 onPress={() => {
                   setShowAddModal(false);
+                  setEditingParticipant(null);
                   setParticipantName('');
+                  setParticipantLevel('beginner');
                 }}
               >
                 <Text style={styles.cancelButtonText}>Cancelar</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.saveButton} onPress={handleAddParticipant}>
-                <Text style={styles.saveButtonText}>Adicionar</Text>
+                <Text style={styles.saveButtonText}>
+                  {editingParticipant ? 'Salvar' : 'Adicionar'}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -255,9 +363,13 @@ const styles = StyleSheet.create({
     borderColor: '#E2E8F0',
   },
   participantInfo: {
+    flex: 1,
+  },
+  participantHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
   },
   participantName: {
     fontSize: 16,
@@ -265,10 +377,49 @@ const styles = StyleSheet.create({
     color: '#1E293B',
     flex: 1,
   },
-  participantIndex: {
-    fontSize: 14,
+  participantActions: {
+    flexDirection: 'row',
+  },
+  actionButton: {
+    padding: 8,
+    marginLeft: 4,
+  },
+  participantMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  levelBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    marginRight: 8,
+  },
+  levelText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  seedText: {
+    fontSize: 12,
     color: '#64748B',
-    fontWeight: '500',
+  },
+  actions: {
+    padding: 24,
+  },
+  importButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    paddingVertical: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderStyle: 'dashed',
+  },
+  importButtonText: {
+    fontSize: 16,
+    color: '#6B7280',
+    marginLeft: 8,
   },
   modalOverlay: {
     flex: 1,
@@ -319,6 +470,31 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 16,
     color: '#1E293B',
+  },
+  levelSelector: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  levelOption: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    alignItems: 'center',
+  },
+  levelOptionSelected: {
+    backgroundColor: '#1E40AF',
+    borderColor: '#1E40AF',
+  },
+  levelOptionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  levelOptionTextSelected: {
+    color: '#FFFFFF',
   },
   modalActions: {
     flexDirection: 'row',

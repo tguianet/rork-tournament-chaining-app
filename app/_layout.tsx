@@ -1,43 +1,40 @@
-import React, { useEffect, useState } from 'react';
-import { Stack } from 'expo-router';
-import { View, ActivityIndicator } from 'react-native';
-import { useAppStore } from '../stores/app-store';
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { Stack } from "expo-router";
+import * as SplashScreen from "expo-splash-screen";
+import React, { useEffect } from "react";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { useTournamentStore } from "@/stores/tournament-store";
+
+SplashScreen.preventAutoHideAsync();
+
+const queryClient = new QueryClient();
+
+function RootLayoutNav() {
+  const { settings, loadData } = useTournamentStore();
+  
+  useEffect(() => {
+    loadData().then(() => {
+      SplashScreen.hideAsync();
+    });
+  }, []);
+  
+  return (
+    <Stack screenOptions={{ headerBackTitle: "Back" }}>
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+      <Stack.Screen name="create-tournament" options={{ headerShown: false }} />
+      <Stack.Screen name="tournament/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="modal" options={{ presentation: "modal" }} />
+    </Stack>
+  );
+}
 
 export default function RootLayout() {
-  const [isLoading, setIsLoading] = useState(true);
-  const loadAppState = useAppStore(s => s.loadAppState);
-
-  useEffect(() => {
-    const initializeApp = async () => {
-      try {
-        console.log('[LAYOUT] Loading app state...');
-        await loadAppState();
-        console.log('[LAYOUT] App state loaded');
-      } catch (error) {
-        console.error('[LAYOUT] Error loading app state:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    initializeApp();
-  }, [loadAppState]);
-
-  if (isLoading) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F8FAFC' }}>
-        <ActivityIndicator size="large" color="#1E40AF" />
-      </View>
-    );
-  }
-
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="index" />
-      <Stack.Screen name="onboarding" />
-      <Stack.Screen name="(tabs)" />
-      <Stack.Screen name="create-tournament" options={{ presentation: 'modal' }} />
-      <Stack.Screen name="tournament" />
-    </Stack>
+    <QueryClientProvider client={queryClient}>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <RootLayoutNav />
+      </GestureHandlerRootView>
+    </QueryClientProvider>
   );
 }
