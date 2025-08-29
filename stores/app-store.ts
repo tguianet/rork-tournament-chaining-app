@@ -19,15 +19,17 @@ export const useAppStore = create<AppState>((set, get) => ({
   loadAppState: async () => {
     try {
       const raw = await AsyncStorage.getItem('app:onboarding');
-      const hasCompleted = raw ? JSON.parse(raw) : false;
+      const parsed = raw ? JSON.parse(raw) : null;
+      const hasCompleted = parsed === true;
+      
       set({ 
         onboarding: { 
-          hasCompletedOnboarding: Boolean(hasCompleted) 
+          hasCompletedOnboarding: hasCompleted 
         } 
       });
-      console.log('[APP_STORE] loadAppState ok', { hasCompleted });
+      console.log('[APP] load ok', { hasCompleted });
     } catch (e) {
-      console.error('[APP_STORE] loadAppState error', e);
+      console.error('[APP] load error', e);
       set({ 
         onboarding: { 
           hasCompletedOnboarding: false 
