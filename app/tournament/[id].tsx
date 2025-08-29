@@ -10,7 +10,7 @@ export default function TournamentDetailScreen() {
   const getTournament = useTournamentStore(state => state.getTournament);
   
   // Normalize id parameter - handle both string and array cases
-  const id = Array.isArray(params.id) ? params.id[0] : params.id;
+  const id = Array.isArray(params.id) ? params.id[0] : params.id || null;
   
   const tournament = id ? getTournament(id) : null;
   

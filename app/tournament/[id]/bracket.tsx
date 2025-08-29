@@ -16,22 +16,22 @@ export default function BracketScreen() {
   const [error, setError] = useState<string | null>(null);
   
   // Normalize id parameter - handle both string and array cases
-  const id = Array.isArray(params.id) ? params.id[0] : params.id;
+  const id = Array.isArray(params.id) ? params.id[0] : params.id || null;
   
   // Subscribe to the tournaments array to ensure re-renders
-  const tournament = tournaments.find(t => t.id === id);
+  const tournament = id ? tournaments.find(t => t.id === id) : null;
   
   // Debug logging
   useEffect(() => {
-    console.log('BracketScreen re-rendered');
-    console.log('Tournament ID:', id);
-    console.log('Tournament found:', !!tournament);
-    console.log('Tournament matches count:', tournament?.matches.length || 0);
+    console.log('[BRACKET] BracketScreen re-rendered');
+    console.log('[BRACKET] Tournament ID:', id);
+    console.log('[BRACKET] Tournament found:', !!tournament);
+    console.log('[BRACKET] Tournament matches count:', tournament?.matches.length || 0);
     if (tournament) {
-      console.log('Tournament status:', tournament.status);
-      console.log('Tournament participants:', tournament.participants.length);
+      console.log('[BRACKET] Tournament status:', tournament.status);
+      console.log('[BRACKET] Tournament participants:', tournament.participants.length);
     }
-  }, [id, tournament]);
+  }, [id, tournament, tournaments]);
   
   if (!id) {
     return (
@@ -100,30 +100,28 @@ export default function BracketScreen() {
             setError(null);
             
             try {
-              // Add a small delay to show the generating state
+              console.log('[BRACKET] Starting bracket generation for tournament:', id);
+              generateBracket(id!, hasExistingBracket); // Force reset if bracket exists
+              console.log('[BRACKET] Bracket generation call completed');
+              
+              // Add a small delay to allow state to update
               setTimeout(() => {
-                try {
-                  generateBracket(id!, hasExistingBracket); // Force reset if bracket exists
-                  console.log('Bracket generation completed successfully');
-                  
-                  // Show success feedback
-                  setTimeout(() => {
-                    const updatedTournament = tournaments.find(t => t.id === id);
-                    if (updatedTournament && updatedTournament.matches.length > 0) {
-                      console.log(`✅ Chaveamento criado com ${updatedTournament.matches.length} partidas`);
-                    }
-                  }, 200);
-                } catch (err) {
-                  console.error('Error generating bracket:', err);
-                  setError(err instanceof Error ? err.message : 'Erro ao gerar chaveamento');
-                  Alert.alert('Erro', err instanceof Error ? err.message : 'Erro ao gerar chaveamento');
-                } finally {
-                  setIsGenerating(false);
+                const updatedTournament = tournaments.find(t => t.id === id);
+                console.log('[BRACKET] After generation - matches count:', updatedTournament?.matches.length || 0);
+                
+                if (updatedTournament && updatedTournament.matches.length > 0) {
+                  console.log(`[BRACKET] ✅ Chaveamento criado com ${updatedTournament.matches.length} partidas`);
+                  setError(null);
+                } else {
+                  console.log('[BRACKET] ❌ Bracket generation may have failed - no matches found');
+                  setError('Falha ao gerar chaveamento. Tente novamente.');
                 }
-              }, 500);
+                setIsGenerating(false);
+              }, 1000);
             } catch (err) {
-              console.error('Error in handleGenerateBracket:', err);
-              setError('Erro inesperado ao gerar chaveamento');
+              console.error('[BRACKET] Error generating bracket:', err);
+              setError(err instanceof Error ? err.message : 'Erro ao gerar chaveamento');
+              Alert.alert('Erro', err instanceof Error ? err.message : 'Erro ao gerar chaveamento');
               setIsGenerating(false);
             }
           }

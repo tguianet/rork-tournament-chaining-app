@@ -15,7 +15,7 @@ export default function ScheduleScreen() {
   const [court, setCourt] = useState('');
   
   // Normalize id parameter - handle both string and array cases
-  const id = Array.isArray(params.id) ? params.id[0] : params.id;
+  const id = Array.isArray(params.id) ? params.id[0] : params.id || null;
   
   const tournament = id ? getTournament(id) : null;
   

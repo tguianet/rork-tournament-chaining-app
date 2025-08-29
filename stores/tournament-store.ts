@@ -43,13 +43,10 @@ const createMatches = (participants: Participant[], tournamentId: string, size: 
     bracketParticipants.push(null); // null represents a "bye"
   }
   
-  // Shuffle participants for better bracket distribution
-  const shuffledParticipants = [...bracketParticipants];
-  
   // First round matches
   for (let i = 0; i < size / 2; i++) {
-    const participant1 = shuffledParticipants[i * 2];
-    const participant2 = shuffledParticipants[i * 2 + 1];
+    const participant1 = bracketParticipants[i * 2];
+    const participant2 = bracketParticipants[i * 2 + 1];
     
     const match: Match = {
       id: generateId(),
@@ -73,21 +70,59 @@ const createMatches = (participants: Participant[], tournamentId: string, size: 
     matches.push(match);
   }
   
-  // Subsequent rounds (empty matches)
+  // Create subsequent rounds
   for (let round = 2; round <= rounds; round++) {
     const matchesInRound = Math.pow(2, rounds - round);
+    
     for (let i = 0; i < matchesInRound; i++) {
-      matches.push({
+      const nextMatch: Match = {
         id: generateId(),
         tournamentId,
         round,
         position: i,
         status: 'pending'
-      });
+      };
+      
+      matches.push(nextMatch);
     }
   }
   
+  // Auto-advance BYE winners to next round
+  advanceBYEWinners(matches);
+  
   return matches;
+};
+
+const advanceBYEWinners = (matches: Match[]) => {
+  const rounds = Math.max(...matches.map(m => m.round));
+  
+  for (let round = 1; round < rounds; round++) {
+    const currentRoundMatches = matches.filter(m => m.round === round && m.status === 'completed' && m.winner);
+    const nextRoundMatches = matches.filter(m => m.round === round + 1);
+    
+    currentRoundMatches.forEach((match, index) => {
+      const nextMatchIndex = Math.floor(index / 2);
+      const nextMatch = nextRoundMatches[nextMatchIndex];
+      
+      if (nextMatch && match.winner) {
+        const isFirstParticipant = index % 2 === 0;
+        if (isFirstParticipant) {
+          nextMatch.participant1 = match.winner;
+        } else {
+          nextMatch.participant2 = match.winner;
+        }
+        
+        // If next match now has only one participant (other is BYE), auto-advance
+        if (nextMatch.participant1 && !nextMatch.participant2) {
+          nextMatch.winner = nextMatch.participant1;
+          nextMatch.status = 'completed';
+        } else if (!nextMatch.participant1 && nextMatch.participant2) {
+          nextMatch.winner = nextMatch.participant2;
+          nextMatch.status = 'completed';
+        }
+      }
+    });
+  }
 };
 
 export const useTournamentStore = create<TournamentStore>((set, get) => ({
@@ -241,43 +276,43 @@ export const useTournamentStore = create<TournamentStore>((set, get) => ({
   },
   
   generateBracket: (tournamentId, forceReset = false) => {
-    console.log('generateBracket called with tournamentId:', tournamentId, 'forceReset:', forceReset);
+    console.log('[STORE] generateBracket called with tournamentId:', tournamentId, 'forceReset:', forceReset);
     
     // Normalize tournamentId if it comes as array
     const normalizedId = Array.isArray(tournamentId) ? tournamentId[0] : tournamentId;
     if (!normalizedId) {
-      console.log('Invalid tournament ID');
+      console.log('[STORE] Invalid tournament ID');
       return;
     }
     
     const state = get();
     const tournament = state.tournaments.find(t => t.id === normalizedId);
     if (!tournament) {
-      console.log('Tournament not found!');
+      console.log('[STORE] Tournament not found!');
       return;
     }
     
-    console.log('Tournament found:', tournament.name);
-    console.log('Participants:', tournament.participants.length);
-    console.log('Tournament size:', tournament.size);
-    console.log('Existing matches:', tournament.matches.length);
+    console.log('[STORE] Tournament found:', tournament.name);
+    console.log('[STORE] Participants:', tournament.participants.length);
+    console.log('[STORE] Tournament size:', tournament.size);
+    console.log('[STORE] Existing matches:', tournament.matches.length);
     
     // Check if bracket already exists and not forcing reset
     if (tournament.matches.length > 0 && !forceReset) {
-      console.log('Bracket already exists. Use forceReset=true to regenerate.');
+      console.log('[STORE] Bracket already exists. Use forceReset=true to regenerate.');
       return;
     }
     
     // Validate minimum participants
     if (tournament.participants.length < 2) {
-      console.log('Not enough participants to generate bracket');
+      console.log('[STORE] Not enough participants to generate bracket');
       throw new Error('É necessário pelo menos 2 participantes para gerar o chaveamento');
     }
     
     // Generate matches
     const matches = createMatches(tournament.participants, normalizedId, tournament.size);
-    console.log('Generated matches:', matches.length);
-    console.log('Matches details:', matches.map(m => ({ 
+    console.log('[STORE] Generated matches:', matches.length);
+    console.log('[STORE] Matches details:', matches.map(m => ({ 
       id: m.id,
       round: m.round, 
       p1: m.participant1?.name || 'BYE', 
@@ -286,39 +321,33 @@ export const useTournamentStore = create<TournamentStore>((set, get) => ({
       winner: m.winner?.name
     })));
     
-    // Create completely new tournaments array to force re-render
-    const updatedTournaments = state.tournaments.map(t => 
-      t.id === normalizedId 
-        ? { 
-            ...t, 
-            matches: matches, // Use new matches array
-            status: 'in_progress' as const, 
-            updatedAt: new Date() 
-          }
-        : { ...t } // Spread other tournaments to ensure immutability
-    );
+    // Update tournament with immutable state change
+    set((state) => ({
+      tournaments: state.tournaments.map(t => 
+        t.id === normalizedId 
+          ? { 
+              ...t, 
+              matches: [...matches], // Create new matches array
+              status: 'in_progress' as const, 
+              updatedAt: new Date() 
+            }
+          : t
+      )
+    }));
     
-    // Force state update with new reference
-    set({ 
-      tournaments: [...updatedTournaments] // Create new array reference
+    console.log('[STORE] State updated, saving data...');
+    
+    // Save to AsyncStorage and verify
+    get().saveData().then(() => {
+      console.log('[STORE] Data saved successfully');
+      
+      // Verify the update
+      const updatedTournament = get().tournaments.find(t => t.id === normalizedId);
+      console.log('[STORE] Final verification - tournament matches count:', updatedTournament?.matches.length);
+      console.log('[STORE] Tournament status:', updatedTournament?.status);
+    }).catch((error) => {
+      console.error('[STORE] Error saving data:', error);
     });
-    
-    console.log('State updated, saving data...');
-    
-    // Save to AsyncStorage
-    setTimeout(async () => {
-      try {
-        await get().saveData();
-        console.log('Data saved successfully');
-        
-        // Verify the update
-        const updatedTournament = get().tournaments.find(t => t.id === normalizedId);
-        console.log('Final verification - tournament matches count:', updatedTournament?.matches.length);
-        console.log('Tournament status:', updatedTournament?.status);
-      } catch (error) {
-        console.error('Error saving data:', error);
-      }
-    }, 100);
   },
   
   updateSettings: (updates) => {
@@ -336,18 +365,34 @@ export const useTournamentStore = create<TournamentStore>((set, get) => ({
         AsyncStorage.getItem('settings')
       ]);
       
-      // Normalize null values to prevent JSON.parse(null) errors
-      const tournaments = tournamentsData && tournamentsData !== 'null' ? JSON.parse(tournamentsData) : [];
-      const settings = settingsData && settingsData !== 'null' ? JSON.parse(settingsData) : {
-        theme: 'light',
-        language: 'pt',
+      // Safely parse data, handling null values
+      let tournaments = [];
+      let settings = {
+        theme: 'light' as const,
+        language: 'pt' as const,
         hasCompletedOnboarding: false
       };
       
-      // Ensure tournaments is always an array
-      const normalizedTournaments = Array.isArray(tournaments) ? tournaments : [];
+      if (tournamentsData && tournamentsData !== 'null') {
+        try {
+          const parsed = JSON.parse(tournamentsData);
+          tournaments = Array.isArray(parsed) ? parsed : [];
+        } catch (e) {
+          console.error('Error parsing tournaments data:', e);
+          tournaments = [];
+        }
+      }
       
-      set({ tournaments: normalizedTournaments, settings });
+      if (settingsData && settingsData !== 'null') {
+        try {
+          const parsed = JSON.parse(settingsData);
+          settings = { ...settings, ...parsed };
+        } catch (e) {
+          console.error('Error parsing settings data:', e);
+        }
+      }
+      
+      set({ tournaments, settings });
     } catch (error) {
       console.error('Error loading data:', error);
       // Set default values on error
