@@ -4,19 +4,27 @@ import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useTournamentStore } from "@/stores/tournament-store";
+import { useAppStore } from "@/stores/app-store";
 
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
 
 function RootLayoutNav() {
-  const { settings, loadData } = useTournamentStore();
+  const { loadData } = useTournamentStore();
+  const { loadAppState } = useAppStore();
   
   useEffect(() => {
-    loadData().then(() => {
+    Promise.all([
+      loadAppState(),
+      loadData()
+    ]).then(() => {
+      SplashScreen.hideAsync();
+    }).catch((error) => {
+      console.error('[LAYOUT] Load error:', error);
       SplashScreen.hideAsync();
     });
-  }, []);
+  }, [loadAppState, loadData]);
   
   return (
     <Stack screenOptions={{ headerBackTitle: "Back" }}>

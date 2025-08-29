@@ -4,7 +4,7 @@ import { Trophy, Users, Calendar, BarChart3 } from 'lucide-react-native';
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useTournamentStore } from '@/stores/tournament-store';
+import { useAppStore } from '@/stores/app-store';
 
 const features = [
   {
@@ -30,11 +30,16 @@ const features = [
 ];
 
 export default function OnboardingScreen() {
-  const updateSettings = useTournamentStore(state => state.updateSettings);
+  const { setOnboardingDone } = useAppStore();
   
-  const handleStart = () => {
-    updateSettings({ hasCompletedOnboarding: true });
-    router.replace('/(tabs)');
+  const handleStart = async () => {
+    try {
+      await setOnboardingDone();
+      router.replace('/(tabs)');
+    } catch (error) {
+      console.error('[ONBOARDING] Error completing onboarding:', error);
+      router.replace('/(tabs)');
+    }
   };
   
   return (

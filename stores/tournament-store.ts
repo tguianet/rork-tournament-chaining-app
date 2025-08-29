@@ -32,6 +32,8 @@ type State = {
   saveData: () => Promise<void>;
   addParticipant: (tournamentId: string, p: Participant) => Promise<void>;
   generateBracket: (tournamentId: string, opts?: { forceReset?: boolean }) => Promise<void>;
+  addTournament: (tournament: Tournament) => Promise<void>;
+  updateTournament: (tournamentId: string, updates: Partial<Tournament>) => Promise<void>;
 };
 
 const nextPow2 = (n: number) => { let p = 1; while (p < n) p <<= 1; return p; };
@@ -150,7 +152,7 @@ export const useTournamentStore = create<State>((set, get) => ({
 
     const next = state.tournaments.map(x =>
       x.id === tournamentId
-        ? { ...x, bracket: { status: 'gerado', matches: [...matches] } }
+        ? { ...x, bracket: { status: 'gerado' as const, matches: [...matches] } }
         : x
     );
     set({ tournaments: next });
@@ -161,5 +163,21 @@ export const useTournamentStore = create<State>((set, get) => ({
       status: after?.bracket?.status,
       matches: after?.bracket?.matches?.length
     });
+  },
+
+  addTournament: async (tournament) => {
+    const { tournaments } = get();
+    const next = [...tournaments, tournament];
+    set({ tournaments: next });
+    await get().saveData();
+  },
+
+  updateTournament: async (tournamentId, updates) => {
+    const { tournaments } = get();
+    const next = tournaments.map(t =>
+      t.id === tournamentId ? { ...t, ...updates } : t
+    );
+    set({ tournaments: next });
+    await get().saveData();
   },
 }));
